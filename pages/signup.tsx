@@ -1,0 +1,185 @@
+import Head from 'next/head'
+import { Inter } from '@next/font/google'
+import { FormEvent, ChangeEvent, useState, useEffect } from 'react'
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
+import { faUser, faLock, faEye, faEnvelope} from '@fortawesome/free-solid-svg-icons'
+import { faGoogle} from '@fortawesome/free-brands-svg-icons'
+import useNavigate from '../hooks/useNavigate'
+import {firebaseClientService} from '../clientFirebase/services/services'
+
+
+
+
+const inter = Inter({ subsets: ['latin'] })
+
+export default function Signup() {
+
+  const navigate = useNavigate()
+ 
+  // The `onload` state variable is used to track whether the component is currently loading.
+  // its used to give time to the app to call the getToken method in router protection function called in the useEffect hook, untill then, the "continue with google" button is unactive, to avoid any error
+  const [onload, setOnload] = useState (true)
+
+  useEffect(() => {
+    // This function is used to protect certain routes from being accessed unless the user is logged in.
+    // If the user is logged in, they will be redirected to the `/welcome` route.
+    // If the user is not logged in, the `onload` state variable will be set to `false`, which will cause the "continue with google" button to be rendered.
+    const routerProtection=async () =>{
+      // Get the user's Firebase ID token
+      const user =  await firebaseClientService.getToken();
+      // If the token is falsy (i.e. if the user is not logged in), set the `onload` state variable to `false`
+      if (!user){
+        setOnload(false)}
+      // If the token is truthy (i.e. if the user is logged in), navigate to the `/welcome` route
+        else if (user){
+        navigate("/welcome")
+      
+      } else {console.log(user)} 
+    }
+    //the timeout of 800 ms is used to avoid any error in the minor possible time
+    setTimeout(routerProtection,800)
+   
+  }, [])
+
+
+
+  const [inputs, setInputs]= useState({
+    fname:"",
+    lname:"",
+    email:"",
+    password:""
+  })
+
+  // The `visibility` state variable is an object that contains the type (i.e. "text" or "password") and style of the password input field in the login form.
+  const [visibility, setVisibility]=useState ({
+    type:"password",
+    style: "absolute text-teal-700 text-3xl right-1 top-1"
+  })
+
+  const handleToggleButton = () => {
+    setVisibility({
+      type: visibility.type === "password" ? "text" : "password",
+      style: visibility.type === "password" ? "absolute text-slate-300 text-3xl right-1 top-1" : "absolute text-teal-700 text-3xl right-1 top-1"
+    });
+  };
+
+  const [errorInSignup, setErrorInSignup] = useState (false)
+
+  const sendPostHttpRequest = async (input:object) => {
+    try {
+      const res = await fetch("http://localhost:3000/api/userCreation", {
+        method: "POST",
+        body: JSON.stringify(input),
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+      const data =  res
+      const dataJson = await data?.json();
+      return (
+        {message:dataJson.message, state:data?.status}
+      )
+    } catch (err) {
+      console.log(err);
+    }
+  }
+
+  // This function is called when the user clicks the "Continue with Google" button.
+  // It signs the user in with their Google account using the Firebase `signInWithGoogle` function.
+  // After the user is signed in, it navigates the user to the `/welcome` route.
+  const handeSignUpWithGoogleButton = async ()=>{
+    const googleUser = await firebaseClientService.handleSigninWithGoogle()
+    navigate("http://localhost:3000/welcome")
+
+  }
+  
+
+
+
+
+  const handleNavigateButton = ()=>{
+    navigate("http://localhost:3000/login")
+  }
+
+  const handleChange = (e:ChangeEvent<HTMLInputElement>)=>{
+    const {name, value} = e.target
+    setInputs(prevValues => 
+      ({ ...prevValues, [name]: value }))
+
+  }
+
+  
+
+  // This function is called when the user submits the sign up form.
+  // It attempts to create a new user in the database using the `sendPostHttpRequest` function.
+  // If the user is successfully created, it navigates the user to the `/login` route.
+  // If the user is not successfully created, it sets the `errorInSignup` state variable to `true` and clears the values in the `inputs` state variable.
+  const handleSingupButton = async (e: FormEvent<HTMLFormElement>)=>{
+    e.preventDefault();
+    const {fname,lname, email,password} = inputs
+    const userInputs = ({
+      userName :`${fname} ${lname}` ,
+      email ,
+      password ,
+    })
+    const res = await sendPostHttpRequest(userInputs)
+    console.log(res)
+   if (res?.state===200){
+    navigate("http://localhost:3000/login")
+   } else{
+    setErrorInSignup(true)
+    setInputs({
+      fname:"",
+      lname:"",
+      email:"",
+      password:""
+    })
+
+   }
+  }
+  
+  const inputClass = " h-9 rounded-md px-2 w-[100%]"
+  return (
+    <>
+      <Head>
+        <title>Sign Up!</title>
+        <meta name="description" content="Generated by create next app" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <link rel="icon" href="/favicon.ico" />
+
+      </Head>
+  
+      <main>
+        <div className='w-screen h-screen flex bg-slate-600  items-center justify-end '>
+          <div className='w-[40%] h-[80%] flex flex-col p-8 justify-between items-center'>
+          {onload?
+          <button className='bg-slate-500 px-3 py-1 rounded-full text-teal-700 font-semibold'><FontAwesomeIcon icon={faGoogle} className="text-yellow-500"/> Continue With Google</button>
+          :
+          <button className='bg-white px-3 py-1 rounded-full text-teal-700 font-semibold' onClick={handeSignUpWithGoogleButton}><FontAwesomeIcon icon={faGoogle} className="text-yellow-500"/> Continue With Google</button>
+          }
+            <form className='flex grow flex-col w-[100%] p-8 justify-between items-center' onSubmit={handleSingupButton}>
+              <div className='flex items-end w-[75%]'>
+                <FontAwesomeIcon icon={faUser}  className='text-white text-3xl mr-2'/>
+                <input name='fname' placeholder='First name' value={inputs.fname} onChange={handleChange} className={inputClass} required={true}></input>
+                <input name='lname' placeholder='Last Name' value={inputs.lname} onChange={handleChange} className={inputClass+" mx-1"} required={true}></input>
+              </div>
+              <div className='flex items-end w-[75%]'>
+                <FontAwesomeIcon icon={faEnvelope}  className='text-white text-3xl mr-2'/>
+                <input name='email' placeholder='Email' type="email" value={inputs.email} onChange={handleChange} className={inputClass} required={true} ></input>
+              </div>
+              <div className='flex items-end relative w-[75%]'>
+                <FontAwesomeIcon icon={faLock} className='text-white text-3xl mr-2'/>
+                <input type={visibility.type} name='password' autoComplete="new-password" placeholder='Password' value={inputs.password} onChange={handleChange} className={inputClass} required={true}></input>
+                <div onClick={handleToggleButton}><FontAwesomeIcon icon={faEye} className={visibility.style}/></div>
+              </div>
+              <button type="submit" className=' bg-white text-teal-700 h-10 w-28 font-semibold rounded-full' >Sign Up</button>
+              
+            </form>
+            {errorInSignup &&  <p className='text-pink-600 font-semibold text-center mb-4'>There has been an error but is not your fault!!!<br/> Try again Later</p>}
+            <button className='bg-white text-teal-700 h-8 w-24 font-semibold rounded-full' onClick={handleNavigateButton}>log in</button>
+          </div>
+        </div>
+      </main>
+    </>
+  )
+}
